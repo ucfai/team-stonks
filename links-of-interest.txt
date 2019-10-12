@@ -1,0 +1,8 @@
+Stochastic Models for Time Series
+https://www.researchgate.net/publication/312500411_Stochastic_Models_for_Time_Series
+
+Time Series and Monte Carlo Simulations
+https://file.scirp.org/pdf/AM_2014050513382674.pdf
+
+Basic Sentiment Analysis (Sci-Kit Learn)
+https://www.twilio.com/blog/2017/12/sentiment-analysis-scikit-learn.html
