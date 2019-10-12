@@ -6,3 +6,6 @@ https://file.scirp.org/pdf/AM_2014050513382674.pdf
 
 Basic Sentiment Analysis (Sci-Kit Learn)
 https://www.twilio.com/blog/2017/12/sentiment-analysis-scikit-learn.html
+
+Vader Lexicon for Sentiment Analysis
+https://github.com/cjhutto/vaderSentiment
