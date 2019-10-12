@@ -9,3 +9,6 @@ https://www.twilio.com/blog/2017/12/sentiment-analysis-scikit-learn.html
 
 Vader Lexicon for Sentiment Analysis
 https://github.com/cjhutto/vaderSentiment
+
+Stock Twits Sentiment Analysis
+https://epchan.blogspot.com/2017/09/stocktwits-sentiment-analysis_7.html
