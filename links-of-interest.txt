@@ -12,3 +12,6 @@ https://github.com/cjhutto/vaderSentiment
 
 Stock Twits Sentiment Analysis
 https://epchan.blogspot.com/2017/09/stocktwits-sentiment-analysis_7.html
+
+Predicting Stock Price with LSTM
+https://towardsdatascience.com/predicting-stock-price-with-lstm-13af86a74944
