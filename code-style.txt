@@ -1,0 +1,18 @@
+Spacing:
+  1 Tab / 4 spaces
+  
+Function Names:
+  CapitalCase
+  
+Variable Names:
+  camelCase
+
+Error Handling:
+  try:
+    code-that-may-throw-error()
+  except SpecificError as error:
+    raise SpecificError("Personal Error Statement")
+
+Line Length:
+  Preferably less than 80, max of 100
+  
