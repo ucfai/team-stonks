@@ -10,6 +10,7 @@ import time
 from tqdm import tqdm
 import os
 import sys
+import glob
 
 def data_preparation(csvFile, year_length=5, *columns):
 	'''
@@ -57,9 +58,9 @@ def create_sequence(input_data, target_index, time_window, forecast_window=1):
 	return seq
 
 
-class LSTMModel(torch.nn.Module):
-	def __init__(self, input_dim, hidden_dim=400, layer_dim=4, output_dim=1, batch_size=32, dropout=0.3, stateful=False):
-		super(LSTMModel, self).__init__()
+class LSTM(torch.nn.Module):
+	def __init__(self, input_dim, hidden_dim=400, layer_dim=4, output_dim=1, batch_size=32, dropout=0.3, stateful=False, device='cpu'):
+		super(LSTM, self).__init__()
 		self.input_dim = input_dim
 		self.hidden_dim = hidden_dim
 		self.layer_dim = layer_dim
@@ -67,9 +68,11 @@ class LSTMModel(torch.nn.Module):
 		self.batch_size = batch_size
 		self.dropout = dropout
 		self.stateful = stateful
+		self.device = device
 
-		# need to specify cuda tensors or not
 		self.hidden = (torch.zeros(self.layer_dim, self.batch_size, self.hidden_dim, dtype=torch.float).requires_grad_(),
+					   torch.zeros(self.layer_dim, self.batch_size, self.hidden_dim, dtype=torch.float).requires_grad_(),
+					   torch.zeros(self.layer_dim, self.batch_size, self.hidden_dim, dtype=torch.float).requires_grad_(),
 					   torch.zeros(self.layer_dim, self.batch_size, self.hidden_dim, dtype=torch.float).requires_grad_())
 
 		self.state_iteration = 0
@@ -84,10 +87,17 @@ class LSTMModel(torch.nn.Module):
 		self.linear = torch.nn.Linear(hidden_dim, output_dim)
 
 	def reset_state(self, x):
-		h0 = torch.zeros(self.layer_dim, x.size(0),
-						 self.hidden_dim, dtype=torch.float).requires_grad_().cuda()
-		c0 = torch.zeros(self.layer_dim, x.size(0),
-						 self.hidden_dim, dtype=torch.float).requires_grad_().cuda()
+		if self.device == 'cuda':
+			h0 = torch.zeros(self.layer_dim, x.size(0),
+							 self.hidden_dim, dtype=torch.float).requires_grad_().cuda()
+			c0 = torch.zeros(self.layer_dim, x.size(0),
+							 self.hidden_dim, dtype=torch.float).requires_grad_().cuda()
+		else:
+			h0 = torch.zeros(self.layer_dim, x.size(0),
+							 self.hidden_dim, dtype=torch.float).requires_grad_()
+			c0 = torch.zeros(self.layer_dim, x.size(0),
+							 self.hidden_dim, dtype=torch.float).requires_grad_()
+
 		return h0, c0
 
 	def forward(self, x):
@@ -217,9 +227,6 @@ def train(model, criterion, optimizer, num_epochs, dataloaders, device, datasets
 	return model
 
 
-
-
-
 def test(model, inputs, device):
     '''
     Will test the model without training it.
@@ -234,155 +241,3 @@ def test(model, inputs, device):
     inputs = torch.tensor(inputs, dtype=torch.float).to(device)
     outputs = model(inputs).cpu().detach().numpy()
     return outputs
-
-
-
-def main():
-	# use specify subpath for datasets in command line argument
-	filePath = os.getcwd() + sys.argv[1]
-
-	# define features of model
-	target_index = 0
-	num_features = 2
-	batch_size = 64
-	time_window = 60
-	forecast_window = 1
-	year_length = 5
-	train_proportion = 0.8
-
-	# best parameters: hidden-50, layer-4, learn-0.01
-	input_dim = num_features
-	hidden_dim = 10
-	layer_dim = 2
-	output_dim = forecast_window
-	learning_rate = 0.01
-	num_epochs = 10
-
-
-	# eventually train all stocks in dataset folder
-	train_stock = "AAPL.csv"
-	forecast_stock = "AAPL.csv"
-
-
-	full_dataset = data_preparation(
-	    filePath+train_stock, year_length, "Open", "Volume")
-
-	train_dataset, val_dataset = train_test_split(
-	    full_dataset, train_size=train_proportion, shuffle=False)
-
-	datasets = {'Train': train_dataset, 'Validation': val_dataset}
-
-	scaler = MinMaxScaler(feature_range=(0, 1))
-
-	train_dataset_sc = scaler.fit_transform(datasets['Train'])
-	val_dataset_sc = scaler.transform(datasets['Validation'])
-
-	datasets_sc = {'Train': train_dataset_sc, 'Validation': val_dataset_sc}
-
-	train_sequence = create_sequence(datasets_sc['Train'],
-	                                 target_index,
-	                                 time_window,
-	                                 forecast_window)
-
-	val_sequence = create_sequence(datasets_sc['Validation'],
-	                               target_index,
-	                               time_window,
-	                               forecast_window)
-
-	dataset_sequences = {'Train': train_sequence, 'Validation': val_sequence}
-
-	dataloaders = {x: DataLoader(dataset_sequences[x],
-	                             batch_size,
-	                             shuffle=True if x == 'Train' else True, num_workers=0)
-	               for x in ['Train', 'Validation']}
-
-
-
-	if torch.cuda.is_available():
-		print('use dat mf gpu')
-		device = 'cuda'
-
-	model = LSTMModel(input_dim=input_dim, hidden_dim=hidden_dim,
-	                  layer_dim=layer_dim, output_dim=output_dim,
-	                  batch_size=batch_size, stateful=False).to(device)
-
-
-	criterion = torch.nn.MSELoss()
-	optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
-
-	if device == 'cuda':
-	    torch.backends.cudnn.benchmark = True
-
-	weight_save_path = 'best.weights.pt'
-	best_loss = 0
-
-
-	model = train(model, criterion, optimizer,
-	              num_epochs, dataloaders, device, datasets)
-
-	test_dataset = data_preparation(
-	    filePath+forecast_stock, year_length, "Open", "Volume")
-
-	target_scaler = MinMaxScaler(feature_range=(0, 1))
-	test_scaler = MinMaxScaler(feature_range=(0, 1))
-
-	# Make array that has indices for one column
-	# [original_array[indices][column] for index in range(length(original_array))]
-
-	to_scale = np.array([test_dataset[i][target_index]
-	                     for i in range(len(test_dataset))])
-	to_scale = to_scale.reshape(-1, 1)
-	target_scaler = target_scaler.fit(to_scale)
-
-	test_dataset_sc = []
-
-	for feature in range(num_features):
-	    to_scale = np.array([test_dataset[i][feature]
-	                         for i in range(len(test_dataset))])
-	    to_scale = to_scale.reshape(-1, 1)
-	    test_dataset_sc.append(test_scaler.fit_transform(to_scale))
-
-
-	test_dataset_sc = np.array(test_dataset_sc)
-	test_dataset_sc = test_dataset_sc.swapaxes(0, 1)
-	test_dataset_sc = test_dataset_sc.reshape(-1, num_features)
-
-	test_sequence = create_sequence(test_dataset_sc,
-	                                target_index,
-	                                time_window,
-	                                forecast_window)
-
-
-	test_input = [test_sequence[i][0] for i in range(len(test_sequence))]
-	test_input = np.array(test_input)
-	test_input = test_input.reshape(-1, time_window, num_features)
-
-	test_target = [test_sequence[i][1] for i in range(len(test_sequence)-1)]
-
-	test_output = test(model, test_input, device)
-
-	test_target = np.array(test_target)
-	test_target = test_target.reshape(-1, 1)
-	test_target = target_scaler.inverse_transform(test_target)
-
-	test_output = np.array(test_output)
-	test_output = test_output.reshape(-1, 1)
-	test_output = target_scaler.inverse_transform(test_output)
-
-	error_plot = target_scaler.transform(
-	    abs(test_target - test_output[1:]))
-
-	plt.figure()
-	plt.subplot(311)
-	plt.plot(test_output)
-	plt.plot(test_target)
-	plt.subplot(312)
-	plt.plot(error_plot)
-	plt.subplot(313)
-	plt.plot([test_dataset[i][target_index] for i in range(len(test_dataset))])
-	plt.show()
-
-
-if __name__ == '__main__':
-	main()
