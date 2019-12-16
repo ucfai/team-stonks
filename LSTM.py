@@ -10,7 +10,6 @@ import time
 from tqdm import tqdm
 import os
 import sys
-import glob
 
 def data_preparation(csvFile, year_length=5, *columns):
 	'''
@@ -31,7 +30,7 @@ def data_preparation(csvFile, year_length=5, *columns):
 	data = data.astype("float")
 	data = data[list(columns)]
 	data = data.values.reshape(-1, len(data.columns))
-	data = data[len(data)-year_length*365:]
+	data = data[len(data) - year_length*365:]
 	return data
 
 
@@ -70,9 +69,9 @@ class LSTM(torch.nn.Module):
 		self.stateful = stateful
 		self.device = device
 
+		# manually defined hidden dimensions
+
 		self.hidden = (torch.zeros(self.layer_dim, self.batch_size, self.hidden_dim, dtype=torch.float).requires_grad_(),
-					   torch.zeros(self.layer_dim, self.batch_size, self.hidden_dim, dtype=torch.float).requires_grad_(),
-					   torch.zeros(self.layer_dim, self.batch_size, self.hidden_dim, dtype=torch.float).requires_grad_(),
 					   torch.zeros(self.layer_dim, self.batch_size, self.hidden_dim, dtype=torch.float).requires_grad_())
 
 		self.state_iteration = 0
@@ -217,10 +216,11 @@ def train(model, criterion, optimizer, num_epochs, dataloaders, device, datasets
 	total_time = time.time() - start
 	pbar.close()
 
-	print('-' * 74)
+	print('-' * 80)
 	print('Training complete in {:.0f}m {:.0f}s'.format(
 		total_time // 60, total_time % 60))
 	print('Best validaton accuracy: {:.4f}'.format(best_acc))
+	print()
 
 	model.load_state_dict(best_model_weights)
 
@@ -237,6 +237,7 @@ def test(model, inputs, device):
     RETURNS:
         outputs: The predicted values of the model.
     '''
+
     model.eval()
     inputs = torch.tensor(inputs, dtype=torch.float).to(device)
     outputs = model(inputs).cpu().detach().numpy()
