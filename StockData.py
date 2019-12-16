@@ -5,6 +5,7 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib.dates as mpl_dates
 from mpl_finance import candlestick_ohlc
+import glob
 
 # Using Alpha Vantage API
 class alphaVantageException(Exception):
@@ -85,7 +86,10 @@ class StockData:
 				frame[colName] = self.n_day_ema(frame, i)
 
 		# find max average and remove 0 - (max - 1) rows will null values
-		frame = frame[max(averages):]
+
+		# this line will remove the starting indicies that have null values
+		#frame = frame[max(averages):]
+
 		frame.to_csv(os.getcwd() + '/data/stock-data/' + filename, index=False)
 		return frame
 
@@ -114,6 +118,44 @@ class StockData:
 	def n_day_ema(self, frame, n):
 		# adds a column to the data frame with an n day exponential moving average (ema)
 		return frame['Open'].ewm(span=n, adjust=False).mean()
+
+
+	def n_day_bollinger_bands(self, filename, n):
+		# apply n-day bollinger bands and add it to the data frame
+		frame = pd.read_csv(os.getcwd() + '/data/stock-data/' + filename)
+		tmp = frame.copy()
+		# check if n-day moving average is in our data frame
+		colNameMA = str(n) + 'MA'
+		if colNameMA not in frame.columns:
+			frame[colNameMA] = self.n_moving_average(frame, n)
+
+
+    	# set .std(ddof=0) for population std instead of sample
+		tmp[colNameMA + '-STD'] = tmp['Adj Close'].rolling(window=20).std()
+		frame[str(n) + 'BB-Upper'] = tmp[colNameMA] + (tmp[colNameMA + '-STD'] * 2)
+		frame[str(n) + 'BB-Lower'] = tmp[colNameMA] - (tmp[colNameMA + '-STD'] * 2)
+		frame.to_csv(os.getcwd() + '/data/stock-data/' + filename, index=False)
+
+	def bollinger_bands(self, symbol, moving_averages=[20]):
+		for i in moving_averages:
+			self.n_day_bollinger_bands(symbol, i)
+
+	def drop_nan(self, filename):
+		frame = pd.read_csv(os.getcwd() + '/data/stock-data/' + filename)
+		frame = frame.dropna()
+		frame.to_csv(os.getcwd() + '/data/stock-data/' + filename, index=False)
+
+	def apply_transformations_to_stock(self, filename, moving_averages = [20]):
+		#frame = pd.read_csv(os.getcwd() + '/data/stock-data/' + symbol + '.csv')
+		self.movingAverages(filename, moving_averages)
+		self.bollinger_bands(filename, moving_averages)
+		self.drop_nan(filename)
+
+	def apply_transformations_to_all_stocks(self, moving_averages):
+		stocks = [os.path.basename(x) for x in glob.glob(os.getcwd() + '/data/stock-data/*.csv')]
+		for stock in stocks:
+			print('Transforming ' + stock)
+			self.apply_transformations_to_stock(stock, moving_averages)
 
 
 	def plot(self, symbol):
@@ -160,9 +202,8 @@ class StockData:
 def main():
 	#movingAverages('AAPL.csv', [5, 10, 15, 30, 50]).to_csv('res.csv', index=False)
 	stocks = StockData('2AC5HW9582LL9CZA')
-	#stocks.download_stock_csv('NVDA')
-	#stocks.movingAverages('NVDA.csv', [5, 15, 30, 50])
-	stocks.plot('NVDA')
+	#stocks.download_stock_csv('')
+	stocks.apply_transformations_to_all_stocks(moving_averages=[5, 20, 50, 100, 200])
 
 
 if __name__ == '__main__':
